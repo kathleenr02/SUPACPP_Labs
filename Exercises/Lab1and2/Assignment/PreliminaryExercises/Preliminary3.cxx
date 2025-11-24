@@ -8,7 +8,6 @@ float magnitude2D(float x, float y) {
 }
 
 int main(){
-
     
     float  x, y, z;
 
