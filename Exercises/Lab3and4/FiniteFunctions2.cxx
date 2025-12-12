@@ -3,6 +3,8 @@
 #include <vector>
 #include "FiniteFunctions.h"
 #include <filesystem> //To check extensions in a nice way
+#include <cstdlib> // rand, srand, RAND_MAX
+#include <cmath>   // log, sqrt, cos, sin
 
 #include "gnuplot-iostream.h" //Needed to produce plots (not part of the course) 
 
@@ -64,11 +66,31 @@ Integration by hand (output needed to normalise function when plotting)
 
 // Edited by me to include the correct normalisation
 
-double FiniteFunction::integrate(int Ndiv){ 
-  //ToDo write an integrator
-  return -99;  
-}
+double FiniteFunction::integrate(int Ndiv){ //private
+  // Trapezoidal integration over [m_RMin, m_RMax]
+  double range = m_RMax - m_RMin;
+  double step  = range / static_cast<double>(Ndiv);
 
+  double sum = 0.0;
+  double x   = m_RMin;
+
+  // Loop from 0 to Ndiv, including both endpoints
+  for (int i = 0; i <= Ndiv; ++i) {
+    double fx = this->callFunction(x);
+
+    // Endpoints get weight 1/2, interior points weight 1
+    if (i == 0 || i == Ndiv) {
+      sum += 0.5 * fx;
+    } else {
+      sum += fx;
+    }
+
+    x += step;
+  }
+
+  // Multiply by step size to get integral
+  return sum * step;
+}
 
 double FiniteFunction::integral(int Ndiv) { //public
   if (Ndiv <= 0){
@@ -81,6 +103,78 @@ double FiniteFunction::integral(int Ndiv) { //public
     return m_Integral;
   }
   else return m_Integral; //Don't bother re-calculating integral if Ndiv is the same as the last call
+}
+
+/*
+###################
+Metropolis sampler: generate Nsamples points from this function
+###################
+*/ 
+std::vector<double> FiniteFunction::sampleMetropolis(int Nsamples, double proposalSigma){
+
+  std::vector<double> samples;
+  samples.reserve(Nsamples);
+
+  // Start in the middle of the range
+  double xi = 0.5 * (m_RMin + m_RMax);
+
+  // Precompute f(xi)
+  double fxi = this->callFunction(xi);
+
+  // Constant PI for Box–Muller
+  const double PI = 3.14159265358979323846;
+
+  for (int i = 0; i < Nsamples; ++i){
+
+    // --- Step 2: propose y from a normal around xi ---
+
+    // Two uniform(0,1) numbers
+    double u1 = rand() / (double)RAND_MAX;
+    double u2 = rand() / (double)RAND_MAX;
+
+    // Box–Muller: standard normal
+    double z = std::sqrt(-2.0 * std::log(u1)) * std::cos(2.0 * PI * u2);
+
+    double y = xi + proposalSigma * z;
+
+    // If y is outside the allowed range, just reject it
+    double fy = 0.0;
+    if (y >= m_RMin && y <= m_RMax){
+      fy = this->callFunction(y);
+    }
+
+    // --- Step 3: compute acceptance A = min( f(y)/f(xi), 1 ) ---
+
+    double A = 0.0;
+    if (fxi > 0.0){
+      double ratio = fy / fxi;
+      if (ratio > 1.0) ratio = 1.0;
+      if (ratio < 0.0) ratio = 0.0;
+      A = ratio;
+    }
+    else if (fy > 0.0){
+      A = 1.0; // move away from a zero
+    }
+    else {
+      A = 0.0;
+    }
+
+    // --- Step 4: draw T in [0,1] and accept/reject ---
+
+    double T = rand() / (double)RAND_MAX;
+
+    if (T < A){
+      // accept
+      xi  = y;
+      fxi = fy;
+    }
+    // else: keep xi the same
+
+    // Store the xi
+    samples.push_back(xi);
+  }
+
+  return samples;
 }
 
 /*
