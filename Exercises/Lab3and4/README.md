@@ -1,4 +1,5 @@
 # Assignment 2 – Finite Functions and Metropolis Sampling
+Kathleen Ramage
 
 ## Overview
 
